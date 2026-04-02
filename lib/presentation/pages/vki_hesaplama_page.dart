@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/config/supabase_config.dart';
 
 class VkiHesaplamaPage extends StatefulWidget {
   const VkiHesaplamaPage({super.key});
@@ -12,14 +13,28 @@ class _VkiHesaplamaPageState extends State<VkiHesaplamaPage> {
   final TextEditingController _boyController = TextEditingController();
   final TextEditingController _kiloController = TextEditingController();
   double? _vki;
+  bool _isSaving = false;
 
-  void _hesapla() {
+  Future<void> _hesapla() async {
     final double? boy = double.tryParse(_boyController.text);
     final double? kilo = double.tryParse(_kiloController.text);
-    if (boy != null && kilo != null && boy > 0) {
-      setState(() {
-        _vki = kilo / ((boy / 100) * (boy / 100));
+    if (boy == null || kilo == null || boy <= 0) return;
+
+    final sonuc = kilo / ((boy / 100) * (boy / 100));
+    setState(() => _vki = sonuc);
+
+    setState(() => _isSaving = true);
+    try {
+      await SupabaseConfig.client.from('vki_kayitlari').insert({
+        'boy': boy,
+        'kilo': kilo,
+        'vki': double.parse(sonuc.toStringAsFixed(2)),
+        'durum': _vkiDurumu(sonuc),
       });
+    } catch (_) {
+      // Kayıt başarısız olsa bile sonucu göster
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -75,7 +90,7 @@ class _VkiHesaplamaPageState extends State<VkiHesaplamaPage> {
                     ),
                     const SizedBox(height: 20),
                     ElevatedButton(
-                      onPressed: _hesapla,
+                      onPressed: _isSaving ? null : _hesapla,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
@@ -83,11 +98,17 @@ class _VkiHesaplamaPageState extends State<VkiHesaplamaPage> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 40, vertical: 12),
                       ),
-                      child: const Text(
-                        "Hesapla",
-                        style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
+                      child: _isSaving
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text(
+                              "Hesapla",
+                              style: TextStyle(
+                                  fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
                     ),
                   ],
                 ),
@@ -130,6 +151,11 @@ class _VkiHesaplamaPageState extends State<VkiHesaplamaPage> {
                       _vkiDurumu(_vki!),
                       style: const TextStyle(
                           fontSize: 18, fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      "Sonuç kaydedildi",
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                   ],
                 ),

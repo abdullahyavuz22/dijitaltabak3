@@ -1,3 +1,6 @@
+# Environment variables (Supabase credentials)
+.env
+
 # Miscellaneous
 *.class
 *.log

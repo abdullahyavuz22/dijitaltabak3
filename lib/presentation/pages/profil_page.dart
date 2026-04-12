@@ -21,10 +21,15 @@ class _ProfilPageState extends State<ProfilPage> {
 
   Future<void> _loadProfil() async {
     try {
+      final userId = SupabaseConfig.client.auth.currentUser?.id;
+      if (userId == null) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
       final response = await SupabaseConfig.client
           .from('profiller')
           .select()
-          .limit(1)
+          .eq('user_id', userId)
           .single();
       if (mounted) setState(() { _profil = response; _isLoading = false; });
     } catch (_) {

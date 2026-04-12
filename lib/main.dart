@@ -14,6 +14,7 @@ import 'presentation/pages/tarifler_page.dart';
 import 'presentation/pages/videolu_tarifler_page.dart';
 import 'presentation/pages/diyetler_page.dart';
 import 'presentation/pages/vki_hesaplama_page.dart';
+import 'presentation/pages/giris_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -38,8 +39,65 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-      home: const MainPage(),
+      home: const AuthGate(),
     );
+  }
+}
+
+class AuthGate extends StatefulWidget {
+  const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  bool _loggedIn = false;
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
+
+  void _init() {
+    bool supabaseReady;
+    try {
+      Supabase.instance.client;
+      supabaseReady = true;
+    } catch (_) {
+      supabaseReady = false;
+    }
+
+    if (!supabaseReady) {
+      setState(() {
+        _loggedIn = true; // Supabase yoksa direkt uygulama açılsın
+        _ready = true;
+      });
+      return;
+    }
+
+    final currentSession = SupabaseConfig.client.auth.currentSession;
+    setState(() {
+      _loggedIn = currentSession != null;
+      _ready = true;
+    });
+
+    SupabaseConfig.client.auth.onAuthStateChange.listen((data) {
+      if (!mounted) return;
+      setState(() => _loggedIn = data.session != null);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_ready) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    return _loggedIn ? const MainPage() : const GirisPage();
   }
 }
 
@@ -222,6 +280,16 @@ class _MainPageState extends State<MainPage> {
                 Navigator.push(context,
                     MaterialPageRoute(
                         builder: (_) => const SoruSormaPage()));
+              },
+            ),
+            const Divider(),
+            ListTile(
+              title: const Text('Çıkış Yap',
+                  style: TextStyle(color: Colors.red)),
+              leading: const Icon(Icons.logout, color: Colors.red),
+              onTap: () async {
+                Navigator.pop(context);
+                await SupabaseConfig.client.auth.signOut();
               },
             ),
           ],

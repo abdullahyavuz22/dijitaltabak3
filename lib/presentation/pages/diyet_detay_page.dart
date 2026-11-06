@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/app_tokens.dart';
 import '../../domain/entities/diyet.dart';
+import '../viewmodels/favori_store.dart';
+import '../widgets/app_ui.dart';
 
 class DiyetDetayPage extends StatelessWidget {
   final Diyet diyet;
@@ -9,188 +12,190 @@ class DiyetDetayPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(diyet.baslik),
+        title: const Text('Diyet Programı'),
+        actions: [
+          if (diyet.id != null)
+            ListenableBuilder(
+              listenable: FavoriStore.instance,
+              builder: (context, _) {
+                final store = FavoriStore.instance;
+                final fav = store.isDiyetFavorite(diyet);
+                return FavoriteIconButton(
+                  isFavorite: fav,
+                  onPressed: () => runFavoriteToggle(
+                    context,
+                    () => store.toggleDiyet(diyet),
+                    wasFavorite: fav,
+                  ),
+                );
+              },
+            ),
+        ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Başlık kartı
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    diyet.baslik,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.md,
+          AppSpacing.xs,
+          AppSpacing.md,
+          AppSpacing.xxl,
+        ),
+        children: [
+          // ── Başlık kartı ──────────────────────────────────
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.xl),
+            decoration: BoxDecoration(
+              gradient: AppColors.brandGradient,
+              borderRadius: AppRadius.xlAll,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                  ),
+                  child: Text(
+                    'DİYET PROGRAMI',
+                    style: text.labelSmall?.copyWith(
                       color: Colors.white,
+                      letterSpacing: 1.2,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Icon(Icons.person, color: Colors.white70, size: 18),
-                      const SizedBox(width: 6),
-                      Text(
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  diyet.baslik,
+                  style: text.headlineSmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.verified_rounded,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
                         diyet.diyetisyen,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          color: Colors.white70,
+                        style: text.bodyMedium?.copyWith(
+                          color: Colors.white.withValues(alpha: 0.9),
                         ),
                       ),
-                    ],
-                  ),
-                ],
-              ),
+                    ),
+                  ],
+                ),
+              ],
             ),
+          ),
 
-            const SizedBox(height: 20),
-
-            // Özet bilgiler
+          // ── Özet ─────────────────────────────────────────
+          if (diyet.kalori != null || diyet.sure != null) ...[
+            const SizedBox(height: AppSpacing.md),
             Row(
               children: [
                 if (diyet.kalori != null)
                   Expanded(
-                    child: _OzetKutu(
-                      icon: Icons.local_fire_department,
-                      baslik: 'Kalori',
-                      deger: '${diyet.kalori} kcal',
+                    child: StatTile(
+                      icon: Icons.local_fire_department_rounded,
+                      color: AppColors.warning,
+                      label: 'Günlük Kalori',
+                      value: '${diyet.kalori} kcal',
                     ),
                   ),
                 if (diyet.kalori != null && diyet.sure != null)
-                  const SizedBox(width: 12),
+                  const SizedBox(width: AppSpacing.sm),
                 if (diyet.sure != null)
                   Expanded(
-                    child: _OzetKutu(
-                      icon: Icons.schedule,
-                      baslik: 'Süre',
-                      deger: diyet.sure!,
+                    child: StatTile(
+                      icon: Icons.schedule_rounded,
+                      color: AppColors.info,
+                      label: 'Süre',
+                      value: diyet.sure!,
                     ),
                   ),
               ],
             ),
+          ],
 
-            if (diyet.aciklama != null) ...[
-              const SizedBox(height: 24),
-              const Text(
-                'Açıklama',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  diyet.aciklama!,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    height: 1.6,
-                    color: Colors.black87,
-                  ),
-                ),
-              ),
-            ],
-
-            const SizedBox(height: 24),
-
-            const Text(
-              'Diyetisyen',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+          // ── Açıklama ─────────────────────────────────────
+          if (diyet.aciklama != null && diyet.aciklama!.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.xl),
+            const SectionTitle(
+              title: 'Program Detayı',
+              icon: Icons.notes_rounded,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: Text(diyet.aciklama!, style: text.bodyLarge),
               ),
             ),
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(12),
-              ),
+          ],
+
+          // ── Diyetisyen ───────────────────────────────────
+          const SizedBox(height: AppSpacing.xl),
+          const SectionTitle(
+            title: 'Diyetisyen',
+            icon: Icons.medical_services_outlined,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
               child: Row(
                 children: [
-                  const CircleAvatar(
-                    backgroundColor: AppColors.primary,
-                    radius: 28,
-                    child: Icon(Icons.person, color: Colors.white, size: 28),
+                  CircleAvatar(
+                    radius: 26,
+                    backgroundColor: scheme.primary.withValues(alpha: 0.12),
+                    child: Icon(
+                      Icons.person_rounded,
+                      color: scheme.primary,
+                      size: 28,
+                    ),
                   ),
-                  const SizedBox(width: 16),
-                  Text(
-                    diyet.diyetisyen,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(diyet.diyetisyen, style: text.titleMedium),
+                        Text(
+                          'Programı hazırlayan uzman',
+                          style: text.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _OzetKutu extends StatelessWidget {
-  final IconData icon;
-  final String baslik;
-  final String deger;
-
-  const _OzetKutu({
-    required this.icon,
-    required this.baslik,
-    required this.deger,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.primary.withValues(alpha: 0.3),
-        ),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: AppColors.primary, size: 28),
-          const SizedBox(height: 8),
-          Text(
-            baslik,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.grey,
-            ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            deger,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: AppColors.primary,
-            ),
+
+          const SizedBox(height: AppSpacing.lg),
+          const AlertBanner(
+            isError: false,
+            message:
+                'Bu program genel bilgilendirme amaçlıdır. Sağlık '
+                'durumunuza özel plan için diyetisyeninize danışın.',
           ),
         ],
       ),

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/app_tokens.dart';
 import '../../domain/entities/recipe.dart';
+import '../widgets/app_ui.dart';
 
 class RecipeDetayPage extends StatelessWidget {
   final Recipe recipe;
@@ -9,104 +11,165 @@ class RecipeDetayPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+
+    final stats = <Widget>[
+      if (recipe.rating != null)
+        StatTile(
+          icon: Icons.star_rounded,
+          color: AppColors.star,
+          label: 'Puan',
+          value: recipe.rating!.toStringAsFixed(1),
+        ),
+      if (recipe.duration != null)
+        StatTile(
+          icon: Icons.schedule_rounded,
+          label: 'Süre',
+          value: recipe.duration!,
+        ),
+      if (recipe.category != null)
+        StatTile(
+          icon: Icons.category_outlined,
+          color: AppColors.info,
+          label: 'Kategori',
+          value: recipe.category!,
+        ),
+    ];
+
     return Scaffold(
-      backgroundColor: Colors.grey[100],
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
-            expandedHeight: 280,
+            expandedHeight: 300,
             pinned: true,
-            backgroundColor: AppColors.primary,
-            iconTheme: const IconThemeData(color: Colors.white),
+            stretch: true,
+            backgroundColor: scheme.surface,
+            leading: const Padding(
+              padding: EdgeInsets.all(AppSpacing.xs),
+              child: _CircleBack(),
+            ),
             flexibleSpace: FlexibleSpaceBar(
-              title: Text(
-                recipe.name,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
-                ),
+              stretchModes: const [StretchMode.zoomBackground],
+              background: Stack(
+                fit: StackFit.expand,
+                children: [
+                  NetworkThumb(url: recipe.imageUrl),
+                  // Alt kısımda yumuşak karartma
+                  const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Colors.black26, Colors.transparent],
+                        stops: [0, 0.35],
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              background: recipe.imageUrl != null
-                  ? Image.network(
-                      recipe.imageUrl!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _placeholder(),
-                    )
-                  : _placeholder(),
             ),
           ),
           SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
+            child: Container(
+              transform: Matrix4.translationValues(0, -24, 0),
+              decoration: BoxDecoration(
+                color: Theme.of(context).scaffoldBackgroundColor,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(AppRadius.xl + 4),
+                ),
+              ),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                AppSpacing.xl,
+                AppSpacing.md,
+                AppSpacing.xl,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Özet bilgiler
-                  Row(
-                    children: [
-                      if (recipe.rating != null)
-                        Expanded(
-                          child: _InfoKutu(
-                            icon: Icons.star_rounded,
-                            iconColor: Colors.amber,
-                            baslik: 'Puan',
-                            deger: recipe.rating!.toStringAsFixed(1),
-                          ),
-                        ),
-                      if (recipe.rating != null && recipe.duration != null)
-                        const SizedBox(width: 12),
-                      if (recipe.duration != null)
-                        Expanded(
-                          child: _InfoKutu(
-                            icon: Icons.timer_outlined,
-                            iconColor: AppColors.primary,
-                            baslik: 'Süre',
-                            deger: recipe.duration!,
-                          ),
-                        ),
-                      if (recipe.category != null) ...[
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _InfoKutu(
-                            icon: Icons.category_outlined,
-                            iconColor: AppColors.primary,
-                            baslik: 'Kategori',
-                            deger: recipe.category!,
-                          ),
-                        ),
+                  Text(recipe.name, style: text.headlineSmall),
+                  if (stats.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    Row(
+                      children: [
+                        for (var i = 0; i < stats.length; i++) ...[
+                          if (i > 0) const SizedBox(width: AppSpacing.sm),
+                          Expanded(child: stats[i]),
+                        ],
                       ],
-                    ],
-                  ),
+                    ),
+                  ],
 
                   // Malzemeler
                   if (recipe.ingredients.isNotEmpty) ...[
-                    const SizedBox(height: 24),
-                    const _SectionBaslik(
-                        title: 'Malzemeler',
-                        icon: Icons.list_alt_outlined),
-                    const SizedBox(height: 10),
-                    _ListeKutu(
-                      items: recipe.ingredients,
-                      bullet: '•',
+                    const SizedBox(height: AppSpacing.xl),
+                    SectionTitle(
+                      title: 'Malzemeler',
+                      icon: Icons.shopping_basket_outlined,
+                      trailing: Text(
+                        '${recipe.ingredients.length} adet',
+                        style: text.labelMedium?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: AppSpacing.xs,
+                        ),
+                        child: Column(
+                          children: [
+                            for (final item in recipe.ingredients)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.md,
+                                  vertical: AppSpacing.xs,
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 7),
+                                      child: Container(
+                                        width: 8,
+                                        height: 8,
+                                        decoration: BoxDecoration(
+                                          color: scheme.primary,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: AppSpacing.sm),
+                                    Expanded(
+                                      child: Text(item, style: text.bodyLarge),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
                   ],
 
                   // Yapılış
                   if (recipe.instructions.isNotEmpty) ...[
-                    const SizedBox(height: 24),
-                    const _SectionBaslik(
-                        title: 'Yapılış',
-                        icon: Icons.menu_book_outlined),
-                    const SizedBox(height: 10),
-                    _ListeKutu(
-                      items: recipe.instructions,
-                      numbered: true,
+                    const SizedBox(height: AppSpacing.xl),
+                    const SectionTitle(
+                      title: 'Yapılışı',
+                      icon: Icons.menu_book_outlined,
                     ),
+                    const SizedBox(height: AppSpacing.sm),
+                    for (var i = 0; i < recipe.instructions.length; i++)
+                      _AdimSatiri(
+                        index: i + 1,
+                        text: recipe.instructions[i],
+                        isLast: i == recipe.instructions.length - 1,
+                      ),
                   ],
-
-                  const SizedBox(height: 32),
                 ],
               ),
             ),
@@ -115,152 +178,84 @@ class RecipeDetayPage extends StatelessWidget {
       ),
     );
   }
-
-  Widget _placeholder() => Container(
-        color: Colors.grey[300],
-        child: const Center(
-          child: Icon(Icons.restaurant, size: 60, color: Colors.white54),
-        ),
-      );
 }
 
-class _InfoKutu extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final String baslik;
-  final String deger;
-
-  const _InfoKutu({
-    required this.icon,
-    required this.iconColor,
-    required this.baslik,
-    required this.deger,
+/// Zaman çizelgesi görünümünde numaralı adım.
+class _AdimSatiri extends StatelessWidget {
+  const _AdimSatiri({
+    required this.index,
+    required this.text,
+    required this.isLast,
   });
+
+  final int index;
+  final String text;
+  final bool isLast;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
+    final scheme = Theme.of(context).colorScheme;
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Icon(icon, color: iconColor, size: 26),
-          const SizedBox(height: 6),
-          Text(
-            deger,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 2),
-          Text(
-            baslik,
-            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SectionBaslik extends StatelessWidget {
-  final String title;
-  final IconData icon;
-
-  // ignore: unused_element
-  const _SectionBaslik({required this.title, required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, color: AppColors.primary, size: 22),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ListeKutu extends StatelessWidget {
-  final List<String> items;
-  final bool numbered;
-  final String bullet;
-
-  const _ListeKutu({
-    required this.items,
-    this.numbered = false,
-    this.bullet = '•',
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: List.generate(items.length, (i) {
-          final prefix = numbered ? '${i + 1}.' : bullet;
-          return Padding(
-            padding: EdgeInsets.only(bottom: i < items.length - 1 ? 10 : 0),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: 28,
-                  child: Text(
-                    prefix,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primary,
-                    ),
+          Column(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: scheme.primary,
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  '$index',
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: scheme.onPrimary,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
+              ),
+              if (!isLast)
                 Expanded(
-                  child: Text(
-                    items[i],
-                    style: const TextStyle(
-                      fontSize: 15,
-                      height: 1.5,
-                      color: Colors.black87,
-                    ),
+                  child: Container(
+                    width: 2,
+                    margin: const EdgeInsets.symmetric(vertical: 4),
+                    color: scheme.primary.withValues(alpha: 0.25),
                   ),
                 ),
-              ],
+            ],
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(
+                top: 5,
+                bottom: isLast ? 0 : AppSpacing.lg,
+              ),
+              child: Text(text, style: Theme.of(context).textTheme.bodyLarge),
             ),
-          );
-        }),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CircleBack extends StatelessWidget {
+  const _CircleBack();
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.92),
+      shape: const CircleBorder(),
+      child: IconButton(
+        tooltip: 'Geri',
+        color: AppColors.ink,
+        icon: const Icon(Icons.arrow_back_rounded),
+        onPressed: () => Navigator.maybePop(context),
       ),
     );
   }

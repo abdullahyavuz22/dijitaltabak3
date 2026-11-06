@@ -1,27 +1,28 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/config/supabase_config.dart';
+import '../../core/theme/app_tokens.dart';
+import '../../domain/entities/video.dart';
+import '../viewmodels/favori_store.dart';
+import '../widgets/app_ui.dart';
 
 class VideoluTariflerPage extends StatefulWidget {
-  const VideoluTariflerPage({super.key});
+  const VideoluTariflerPage({super.key, this.initialVideoId});
+
+  /// Açılışta seçili olacak YouTube video id'si (örn. Favoriler'den gelince).
+  final String? initialVideoId;
 
   @override
   State<VideoluTariflerPage> createState() => _VideoluTariflerPageState();
 }
 
 class _VideoluTariflerPageState extends State<VideoluTariflerPage> {
-  List<Map<String, dynamic>> _videolar = [];
+  final _favoriler = FavoriStore.instance;
+  List<Video> _videolar = [];
   bool _isLoading = true;
-  int? _selectedIndex;
-  String? _currentVideoId;
-  InAppWebViewController? _webViewController;
-  bool _webViewReady = false;
-
-  static const _userAgent =
-      'Mozilla/5.0 (Linux; Android 11; Pixel 5) '
-      'AppleWebKit/537.36 (KHTML, like Gecko) '
-      'Chrome/119.0.6045.163 Mobile Safari/537.36';
+  int _selectedIndex = 0;
+  YoutubePlayerController? _controller;
 
   @override
   void initState() {
@@ -29,225 +30,307 @@ class _VideoluTariflerPageState extends State<VideoluTariflerPage> {
     _loadVideolar();
   }
 
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadVideolar() async {
+    List<Video> list;
     try {
       final response = await SupabaseConfig.client
           .from('videolu_tarifler')
           .select()
           .order('created_at');
-      if (mounted) {
-        setState(() {
-          _videolar = List<Map<String, dynamic>>.from(response as List);
-          _isLoading = false;
-        });
-      }
+      list = (response as List)
+          .map((e) => Video.fromMap(e as Map<String, dynamic>))
+          .toList();
     } catch (_) {
-      if (mounted) {
-        setState(() {
-          _videolar = [
-            {'baslik': 'Menemen Tarifi', 'video_id': 'ajdSDri1c-U'},
-            {'baslik': 'Kuru Fasulye Tarifi', 'video_id': '7rORG0W31aE'},
-          ];
-          _isLoading = false;
-        });
-      }
+      // Çevrimdışı yedek (id yok → favorilenemez)
+      list = const [
+        Video(baslik: 'Menemen Tarifi', videoId: 'ajdSDri1c-U'),
+        Video(baslik: 'Kuru Fasulye Tarifi', videoId: '7rORG0W31aE'),
+      ];
     }
-  }
+    if (!mounted) return;
 
-  void _playVideo(int index) {
-    final videoId = _videolar[index]['video_id'] as String;
-    final url = 'https://www.youtube.com/embed/$videoId'
-        '?autoplay=1&playsinline=1&rel=0&fs=1';
-
+    final initial = list.indexWhere((v) => v.videoId == widget.initialVideoId);
     setState(() {
-      _selectedIndex = index;
-      _currentVideoId = videoId;
+      _videolar = list;
+      _selectedIndex = initial < 0 ? 0 : initial;
+      _isLoading = false;
     });
-
-    if (_webViewReady && _webViewController != null) {
-      _webViewController!.loadUrl(
-        urlRequest: URLRequest(url: WebUri(url)),
-      );
-    }
+    if (list.isNotEmpty) _initPlayer(list[_selectedIndex].videoId);
   }
 
-  String _blankHtml() => '''<!DOCTYPE html>
-<html>
-<head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>* { margin:0; padding:0; } body { background:#000; }</style>
-</head>
-<body></body>
-</html>''';
+  void _initPlayer(String videoId) {
+    _controller?.dispose();
+    _controller = YoutubePlayerController(
+      initialVideoId: videoId,
+      flags: YoutubePlayerFlags(
+        autoPlay: widget.initialVideoId != null,
+        mute: false,
+        enableCaption: false,
+        forceHD: false,
+        useHybridComposition: true,
+      ),
+    );
+    if (mounted) setState(() {});
+  }
+
+  void _selectVideo(int index) {
+    if (_selectedIndex == index) return;
+    setState(() => _selectedIndex = index);
+    _controller?.load(_videolar[index].videoId);
+  }
+
+  void _toggleFavori(Video v) => runFavoriteToggle(
+    context,
+    () => _favoriler.toggleVideo(v),
+    wasFavorite: _favoriler.isVideoFavorite(v),
+  );
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Videolu Tarifler',
-            style: TextStyle(color: Colors.white)),
-        backgroundColor: AppColors.primary,
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
-      body: Column(
-        children: [
-          // ── Video oynatıcı ──────────────────────────────────────────
-          SizedBox(
-            height: 220,
-            child: Stack(
-              children: [
-                // WebView her zaman ağaçta kalıyor
-                InAppWebView(
-                  initialData: InAppWebViewInitialData(
-                    data: _blankHtml(),
-                    mimeType: 'text/html',
-                    encoding: 'utf-8',
-                    baseUrl: WebUri('https://www.youtube.com'),
-                  ),
-                  initialSettings: InAppWebViewSettings(
-                    mediaPlaybackRequiresUserGesture: false,
-                    allowsInlineMediaPlayback: true,
-                    javaScriptEnabled: true,
-                    transparentBackground: false,
-                    supportZoom: false,
-                    useWideViewPort: true,
-                    loadWithOverviewMode: true,
-                    userAgent: _userAgent,
-                    allowsAirPlayForMediaPlayback: true,
-                    allowsPictureInPictureMediaPlayback: true,
-                  ),
-                  onWebViewCreated: (controller) {
-                    _webViewController = controller;
-                    setState(() => _webViewReady = true);
-                    // Eğer zaten bir video seçildiyse yükle
-                    if (_currentVideoId != null) {
-                      final url =
-                          'https://www.youtube.com/embed/$_currentVideoId'
-                          '?autoplay=1&playsinline=1&rel=0&fs=1';
-                      controller.loadUrl(
-                          urlRequest: URLRequest(url: WebUri(url)));
-                    }
-                  },
-                ),
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
 
-                // Video seçilmemişse üstünde placeholder göster
-                if (_currentVideoId == null)
-                  Container(
-                    color: Colors.black,
-                    child: const Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.play_circle_outline,
-                              color: Colors.white54, size: 56),
-                          SizedBox(height: 8),
-                          Text('Bir tarif seçin',
-                              style: TextStyle(
-                                  color: Colors.white60, fontSize: 15)),
-                        ],
-                      ),
+    return YoutubePlayerBuilder(
+      player: YoutubePlayer(
+        controller: _controller ?? YoutubePlayerController(initialVideoId: ''),
+        showVideoProgressIndicator: true,
+        progressIndicatorColor: AppColors.primaryLight,
+        progressColors: const ProgressBarColors(
+          playedColor: AppColors.primaryLight,
+          handleColor: AppColors.primaryLight,
+        ),
+      ),
+      builder: (context, player) {
+        final selected = _videolar.isEmpty ? null : _videolar[_selectedIndex];
+        return Scaffold(
+          appBar: AppBar(title: const Text('Videolu Tarifler')),
+          body: ListenableBuilder(
+            listenable: _favoriler,
+            builder: (context, _) => Column(
+              children: [
+                // ── Video oynatıcı ───────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                  ),
+                  child: ClipRRect(
+                    borderRadius: AppRadius.lgAll,
+                    child: _controller != null
+                        ? player
+                        : const AspectRatio(
+                            aspectRatio: 16 / 9,
+                            child: ColoredBox(
+                              color: Colors.black,
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                  ),
+                ),
+                if (selected != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.md,
+                      AppSpacing.xs,
+                      AppSpacing.xs,
+                      0,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.graphic_eq_rounded,
+                          color: scheme.primary,
+                          size: 20,
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                        Expanded(
+                          child: Text(
+                            selected.baslik,
+                            style: text.titleMedium,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (selected.id != null)
+                          FavoriteIconButton(
+                            isFavorite: _favoriler.isVideoFavorite(selected),
+                            onPressed: () => _toggleFavori(selected),
+                          ),
+                      ],
                     ),
                   ),
+
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.md,
+                    AppSpacing.md,
+                    AppSpacing.md,
+                    AppSpacing.xs,
+                  ),
+                  child: SectionTitle(
+                    title: 'Tüm Videolar',
+                    trailing: _isLoading
+                        ? null
+                        : Text(
+                            '${_videolar.length} video',
+                            style: text.labelMedium?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                  ),
+                ),
+
+                // ── Liste ────────────────────────────────────────────
+                Expanded(
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _videolar.isEmpty
+                      ? const EmptyState(
+                          icon: Icons.video_library_outlined,
+                          title: 'Henüz video yok',
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(
+                            AppSpacing.md,
+                            AppSpacing.xs,
+                            AppSpacing.md,
+                            AppSpacing.xl,
+                          ),
+                          itemCount: _videolar.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: AppSpacing.sm),
+                          itemBuilder: (context, index) {
+                            final video = _videolar[index];
+                            return VideoKart(
+                              video: video,
+                              isSelected: _selectedIndex == index,
+                              isFavorite: _favoriler.isVideoFavorite(video),
+                              onTap: () => _selectVideo(index),
+                              onToggleFavorite: video.id == null
+                                  ? null
+                                  : () => _toggleFavori(video),
+                            );
+                          },
+                        ),
+                ),
               ],
             ),
           ),
+        );
+      },
+    );
+  }
+}
 
-          const SizedBox(height: 12),
+/// Küçük görselli video satırı (Videolu Tarifler + Favoriler).
+class VideoKart extends StatelessWidget {
+  const VideoKart({
+    super.key,
+    required this.video,
+    required this.onTap,
+    this.isSelected = false,
+    this.isFavorite = false,
+    this.onToggleFavorite,
+  });
 
-          // ── Video listesi ───────────────────────────────────────────
-          if (_isLoading)
-            const Expanded(
-                child: Center(child: CircularProgressIndicator()))
-          else
-            Expanded(
-              child: ListView.builder(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                itemCount: _videolar.length,
-                itemBuilder: (context, index) {
-                  final video = _videolar[index];
-                  final videoId = video['video_id'] as String;
-                  final baslik = video['baslik'] as String;
-                  final isSelected = _selectedIndex == index;
+  final Video video;
+  final bool isSelected;
+  final bool isFavorite;
+  final VoidCallback onTap;
 
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: InkWell(
-                      onTap: () => _playVideo(index),
-                      borderRadius: BorderRadius.circular(14),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? AppColors.primary.withValues(alpha: 0.08)
-                              : Colors.white,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: isSelected
-                                ? AppColors.primary
-                                : Colors.grey.shade200,
-                            width: 1.5,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.05),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            ClipRRect(
-                              borderRadius: const BorderRadius.horizontal(
-                                  left: Radius.circular(13)),
-                              child: Image.network(
-                                'https://img.youtube.com/vi/$videoId/mqdefault.jpg',
-                                width: 120,
-                                height: 76,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(
-                                  width: 120,
-                                  height: 76,
-                                  color: Colors.grey[300],
-                                  child: const Icon(Icons.video_library,
-                                      color: Colors.grey),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                baslik,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: isSelected
-                                      ? FontWeight.bold
-                                      : FontWeight.w500,
-                                  color: isSelected
-                                      ? AppColors.primary
-                                      : Colors.black87,
-                                ),
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.only(right: 12),
-                              child: Icon(
-                                isSelected
-                                    ? Icons.pause_circle_filled
-                                    : Icons.play_circle_fill,
-                                color: AppColors.primary,
-                                size: 30,
-                              ),
-                            ),
-                          ],
+  /// Null ise favori butonu gösterilmez.
+  final VoidCallback? onToggleFavorite;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: AppRadius.lgAll,
+        side: BorderSide(
+          color: isSelected ? scheme.primary : scheme.outlineVariant,
+          width: isSelected ? 2 : 1,
+        ),
+      ),
+      color: isSelected
+          ? scheme.primary.withValues(alpha: 0.06)
+          : scheme.surface,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xs),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: AppRadius.mdAll,
+                child: SizedBox(
+                  width: 128,
+                  height: 72,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      NetworkThumb(
+                        url: video.thumbnailUrl,
+                        icon: Icons.video_library_outlined,
+                      ),
+                      Container(color: Colors.black26),
+                      Center(
+                        child: Icon(
+                          isSelected
+                              ? Icons.equalizer_rounded
+                              : Icons.play_arrow_rounded,
+                          color: Colors.white,
+                          size: 32,
                         ),
                       ),
-                    ),
-                  );
-                },
+                    ],
+                  ),
+                ),
               ),
-            ),
-        ],
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      video.baslik,
+                      style: text.titleSmall?.copyWith(
+                        color: isSelected ? scheme.primary : null,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      isSelected ? 'Şimdi oynatılıyor' : 'İzlemek için dokun',
+                      style: text.labelSmall?.copyWith(
+                        color: isSelected
+                            ? scheme.primary
+                            : scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (onToggleFavorite != null)
+                FavoriteIconButton(
+                  isFavorite: isFavorite,
+                  onPressed: onToggleFavorite,
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }

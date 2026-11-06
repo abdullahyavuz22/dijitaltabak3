@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/config/supabase_config.dart';
+import '../../core/theme/app_tokens.dart';
+import '../widgets/app_ui.dart';
+import '../widgets/kilo_takibi_karti.dart';
 
 class ProfilPage extends StatefulWidget {
   const ProfilPage({super.key});
@@ -10,16 +13,19 @@ class ProfilPage extends StatefulWidget {
 }
 
 class _ProfilPageState extends State<ProfilPage> {
-  Map<String, dynamic>? _profil;
+  Map<String, dynamic>? _kullanici;
   bool _isLoading = true;
+
+  /// Aşağı çekip yenilemede kilo kartını da yeniden yüklemek için.
+  int _yenileme = 0;
 
   @override
   void initState() {
     super.initState();
-    _loadProfil();
+    _loadKullanici();
   }
 
-  Future<void> _loadProfil() async {
+  Future<void> _loadKullanici() async {
     try {
       final userId = SupabaseConfig.client.auth.currentUser?.id;
       if (userId == null) {
@@ -27,72 +33,347 @@ class _ProfilPageState extends State<ProfilPage> {
         return;
       }
       final response = await SupabaseConfig.client
-          .from('profiller')
+          .from('kullanicilar')
           .select()
-          .eq('user_id', userId)
+          .eq('id', userId)
           .single();
-      if (mounted) setState(() { _profil = response; _isLoading = false; });
+      if (mounted) {
+        setState(() {
+          _kullanici = response;
+          _isLoading = false;
+        });
+      }
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  String get _adSoyad {
+    if (_kullanici == null) return '';
+    final ad = _kullanici!['ad'] ?? '';
+    final soyad = _kullanici!['soyad'] ?? '';
+    return '$ad $soyad'.trim();
+  }
+
+  String get _email {
+    return _kullanici?['email'] ??
+        SupabaseConfig.client.auth.currentUser?.email ??
+        '';
+  }
+
+  String get _telefon {
+    final t = _kullanici?['telefon'];
+    return t is String ? t : '';
+  }
+
+  String get _initials {
+    final parts = _adSoyad.split(RegExp(r'\s+')).where((p) => p.isNotEmpty);
+    if (parts.isEmpty) return '?';
+    return parts.take(2).map((p) => p[0].toUpperCase()).join();
+  }
+
+  /// Rol rozeti: (etiket, ikon, renk) — normal kullanıcıda null.
+  (String, IconData, Color)? get _rolRozeti => switch (_kullanici?['role']) {
+    'admin' => ('Yönetici', Icons.shield_outlined, AppColors.info),
+    'diyetisyen' => (
+      'Diyetisyen',
+      Icons.medical_services_outlined,
+      AppColors.warning,
+    ),
+    _ => null,
+  };
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Profil", style: TextStyle(color: Colors.white)),
-        backgroundColor: AppColors.primary,
-        iconTheme: const IconThemeData(color: Colors.white),
+    if (_isLoading) return const Center(child: CircularProgressIndicator());
+
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    final rozet = _rolRozeti;
+    const bos = 'Bilgi girilmemiş';
+
+    return RefreshIndicator(
+      onRefresh: () async {
+        setState(() => _yenileme++);
+        await _loadKullanici();
+      },
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.md,
+          AppSpacing.xs,
+          AppSpacing.md,
+          AppSpacing.xxl,
+        ),
+        children: [
+          // ── Profil kartı ──────────────────────────────────
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.xl),
+            decoration: BoxDecoration(
+              gradient: AppColors.brandGradient,
+              borderRadius: AppRadius.xlAll,
+            ),
+            child: Column(
+              children: [
+                Container(
+                  width: 88,
+                  height: 88,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.5),
+                      width: 4,
+                    ),
+                  ),
+                  child: Text(
+                    _initials,
+                    style: text.headlineMedium?.copyWith(
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  _adSoyad.isNotEmpty ? _adSoyad : 'Kullanıcı',
+                  style: text.titleLarge?.copyWith(color: Colors.white),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _email,
+                  style: text.bodyMedium?.copyWith(
+                    color: Colors.white.withValues(alpha: 0.85),
+                  ),
+                ),
+                if (rozet != null) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(rozet.$2, size: 16, color: rozet.$3),
+                        const SizedBox(width: 6),
+                        Text(
+                          rozet.$1,
+                          style: text.labelMedium?.copyWith(
+                            color: rozet.$3,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+          const SizedBox(height: AppSpacing.lg),
+          KiloTakibiKarti(key: ValueKey(_yenileme)),
+
+          const SizedBox(height: AppSpacing.xl),
+          Padding(
+            padding: const EdgeInsets.only(left: AppSpacing.xxs),
+            child: Text(
+              'Kişisel Bilgiler',
+              style: text.titleSmall?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+
+          // ── Bilgi kartı ───────────────────────────────────
+          Card(
+            child: Column(
+              children: [
+                _BilgiSatiri(
+                  icon: Icons.person_outline_rounded,
+                  baslik: 'Ad Soyad',
+                  deger: _adSoyad.isNotEmpty ? _adSoyad : bos,
+                ),
+                const Divider(indent: 68),
+                _BilgiSatiri(
+                  icon: Icons.email_outlined,
+                  baslik: 'E-posta',
+                  deger: _email.isNotEmpty ? _email : bos,
+                ),
+                const Divider(indent: 68),
+                _BilgiSatiri(
+                  icon: Icons.phone_outlined,
+                  baslik: 'Telefon',
+                  deger: _telefon.isNotEmpty ? _telefon : bos,
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: AppSpacing.lg),
+          OutlinedButton.icon(
+            onPressed: () => _profiliDuzenle(context),
+            icon: const Icon(Icons.edit_outlined),
+            label: const Text('Profili Düzenle'),
+          ),
+        ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(20.0),
+    );
+  }
+
+  void _profiliDuzenle(BuildContext context) {
+    final adController = TextEditingController(text: _kullanici?['ad'] ?? '');
+    final soyadController = TextEditingController(
+      text: _kullanici?['soyad'] ?? '',
+    );
+    final telefonController = TextEditingController(text: _telefon);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        bool kaydediliyor = false;
+        String? hata;
+        return StatefulBuilder(
+          builder: (ctx, setModal) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                AppSpacing.xl,
+                0,
+                AppSpacing.xl,
+                MediaQuery.of(ctx).viewInsets.bottom + AppSpacing.xl,
+              ),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const CircleAvatar(
-                    radius: 60,
-                    backgroundImage: AssetImage("assets/images/db.jpg"),
+                  Text(
+                    'Profili Düzenle',
+                    style: Theme.of(ctx).textTheme.titleLarge,
                   ),
-                  const SizedBox(height: 30),
-                  ListTile(
-                    leading: const Icon(Icons.person, color: AppColors.primary),
-                    title: Text(
-                      _profil != null
-                          ? '${_profil!['ad']} ${_profil!['soyad'] ?? ''}'
-                          : 'Doğukan BAYESEN',
+                  const SizedBox(height: AppSpacing.lg),
+                  TextField(
+                    controller: adController,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      labelText: 'Ad',
+                      prefixIcon: Icon(Icons.person_outline_rounded),
                     ),
                   ),
-                  ListTile(
-                    leading: const Icon(Icons.email, color: AppColors.primary),
-                    title: Text(_profil?['email'] ?? 'dogukan.bayesen@rumeli.edu.tr'),
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.phone, color: AppColors.primary),
-                    title: Text(_profil?['telefon'] ?? '+90 555 123 45 67'),
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.info, color: AppColors.primary),
-                    title: Text(_profil?['bio'] ?? 'Flutter geliştiricisi, tarif meraklısı.'),
-                  ),
-                  const SizedBox(height: 30),
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
+                  const SizedBox(height: AppSpacing.sm),
+                  TextField(
+                    controller: soyadController,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      labelText: 'Soyad',
+                      prefixIcon: Icon(Icons.person_outline_rounded),
                     ),
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Profil düzenleme tıklandı")),
-                      );
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  TextField(
+                    controller: telefonController,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      labelText: 'Telefon',
+                      prefixIcon: Icon(Icons.phone_outlined),
+                    ),
+                  ),
+                  if (hata != null) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    AlertBanner(message: hata!),
+                  ],
+                  const SizedBox(height: AppSpacing.lg),
+                  LoadingButton(
+                    label: 'Kaydet',
+                    icon: Icons.check_rounded,
+                    loading: kaydediliyor,
+                    onPressed: () async {
+                      setModal(() {
+                        kaydediliyor = true;
+                        hata = null;
+                      });
+                      try {
+                        final userId =
+                            SupabaseConfig.client.auth.currentUser?.id;
+                        if (userId != null) {
+                          await SupabaseConfig.client
+                              .from('kullanicilar')
+                              .update({
+                                'ad': adController.text.trim(),
+                                'soyad': soyadController.text.trim(),
+                                'telefon': telefonController.text.trim(),
+                              })
+                              .eq('id', userId);
+                          if (mounted) {
+                            await _loadKullanici();
+                            if (ctx.mounted) Navigator.pop(ctx);
+                          }
+                        }
+                      } catch (_) {
+                        setModal(() {
+                          kaydediliyor = false;
+                          hata = 'Profil güncellenemedi. Tekrar deneyin.';
+                        });
+                      }
                     },
-                    icon: const Icon(Icons.edit),
-                    label: const Text("Profili Düzenle"),
                   ),
                 ],
               ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _BilgiSatiri extends StatelessWidget {
+  const _BilgiSatiri({
+    required this.icon,
+    required this.baslik,
+    required this.deger,
+  });
+
+  final IconData icon;
+  final String baslik;
+  final String deger;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm + 2,
+      ),
+      child: Row(
+        children: [
+          IconBadge(icon: icon, size: 40),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  baslik,
+                  style: text.labelMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(deger, style: text.bodyLarge),
+              ],
             ),
+          ),
+        ],
+      ),
     );
   }
 }

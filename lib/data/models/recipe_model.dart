@@ -33,7 +33,13 @@ class RecipeModel extends Recipe {
     // Supabase'den JSON array olarak geliyorsa (ingredients gibi)
     if (value is List) {
       return value
-          .map((e) => e.toString().replaceAll('\r\n', ' ').replaceAll('\n', ' ').trim())
+          .map(
+            (e) => e
+                .toString()
+                .replaceAll('\r\n', ' ')
+                .replaceAll('\n', ' ')
+                .trim(),
+          )
           .where((s) => s.isNotEmpty)
           .toList();
     }
@@ -47,7 +53,8 @@ class RecipeModel extends Recipe {
       final items = <String>[];
       final regex = RegExp(r'"((?:[^"\\]|\\.)*)"');
       for (final match in regex.allMatches(inner)) {
-        final item = match.group(1)!
+        final item = match
+            .group(1)!
             .replaceAll('\\"', '"')
             .replaceAll('\\\\', '\\')
             .replaceAll('\r\n', ' ')

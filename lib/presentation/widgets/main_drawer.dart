@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/theme/app_tokens.dart';
-import '../pages/diyetler_page.dart';
+import '../pages/diyetisyen_onerileri_page.dart';
 import '../pages/soru_sorma_page.dart';
 import '../pages/tarifler_page.dart';
-import '../pages/videolu_tarifler_page.dart';
 import '../pages/vki_hesaplama_page.dart';
 
 class MainDrawer extends StatelessWidget {
@@ -23,16 +22,8 @@ class MainDrawer extends StatelessWidget {
         'Beslenme',
         [
           ('Tarifler', Icons.restaurant_menu_rounded, const TariflerPage()),
-          (
-            'Videolu Tarifler',
-            Icons.play_circle_outline_rounded,
-            const VideoluTariflerPage(),
-          ),
-          (
-            'Diyetler',
-            Icons.local_fire_department_outlined,
-            const DiyetlerPage(),
-          ),
+          ('Diyetler', Icons.local_fire_department_outlined, null),
+          ('Videolu Tarifler', Icons.play_circle_outline_rounded, null),
           ('Beslenme Takvimi', Icons.calendar_month_outlined, null),
         ],
       ),
@@ -44,7 +35,11 @@ class MainDrawer extends StatelessWidget {
             Icons.monitor_weight_outlined,
             const VkiHesaplamaPage(),
           ),
-          ('Diyetisyen Önerileri', Icons.medical_services_outlined, null),
+          (
+            'Diyetisyen Değerlendirmesi',
+            Icons.medical_services_outlined,
+            const DiyetisyenOnerileriPage(),
+          ),
           ('Soru Sor', Icons.forum_outlined, const SoruSormaPage()),
           ('Blog', Icons.article_outlined, null),
         ],
@@ -67,16 +62,16 @@ class MainDrawer extends StatelessWidget {
               child: Row(
                 children: [
                   Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
+                    width: 64,
+                    height: 64,
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
                       color: Colors.white,
-                      borderRadius: AppRadius.mdAll,
+                      shape: BoxShape.circle,
                     ),
-                    child: const Icon(
-                      Icons.eco_rounded,
-                      color: AppColors.primary,
-                      size: 28,
+                    child: Image.asset(
+                      'assets/images/app_logo.png',
+                      semanticLabel: 'Dijital Tabağım logosu',
                     ),
                   ),
                   const SizedBox(width: AppSpacing.sm),

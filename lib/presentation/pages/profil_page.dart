@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/config/supabase_config.dart';
 import '../../core/theme/app_tokens.dart';
+import '../../data/repositories/auth_repository.dart';
+import '../viewmodels/favori_store.dart';
 import '../widgets/app_ui.dart';
 import '../widgets/kilo_takibi_karti.dart';
 
@@ -222,9 +224,82 @@ class _ProfilPageState extends State<ProfilPage> {
             icon: const Icon(Icons.edit_outlined),
             label: const Text('Profili Düzenle'),
           ),
+
+          // ── Hesap ────────────────────────────────────────
+          const SizedBox(height: AppSpacing.xxl),
+          Padding(
+            padding: const EdgeInsets.only(left: AppSpacing.xxs),
+            child: Text(
+              'Hesap',
+              style: text.titleSmall?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Card(
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.xxs,
+              ),
+              leading: IconBadge(
+                icon: Icons.person_remove_outlined,
+                color: scheme.error,
+                size: 40,
+              ),
+              title: Text(
+                'Hesabı Sil',
+                style: text.titleSmall?.copyWith(color: scheme.error),
+              ),
+              subtitle: Text(
+                'Hesabın ve tüm verilerin kalıcı olarak silinir.',
+                style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              ),
+              trailing: Icon(
+                Icons.chevron_right_rounded,
+                color: scheme.onSurfaceVariant,
+              ),
+              onTap: () => _hesabiSil(context),
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  Future<void> _hesabiSil(BuildContext context) async {
+    final onay = await showDialog<bool>(
+      context: context,
+      builder: (_) => const _HesapSilDialog(),
+    );
+    if (onay != true || !context.mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    // Kök navigator, oturum kapanıp bu sayfa kaldırılsa da yaşamaya devam eder;
+    // yükleniyor penceresini her durumda onunla kapatıyoruz.
+    final rootNav = Navigator.of(context, rootNavigator: true);
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const PopScope(
+        canPop: false,
+        child: Center(child: CircularProgressIndicator()),
+      ),
+    );
+    try {
+      await AuthRepository().deleteAccount();
+      FavoriStore.instance.clear();
+      rootNav.pop();
+      // Oturum kapandığı için AuthGate giriş ekranına yönlendirir.
+      messenger.showSnackBar(const SnackBar(content: Text('Hesabın silindi.')));
+    } catch (e) {
+      debugPrint('[Profil] Hesap silme hatası: $e');
+      rootNav.pop();
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Hesap silinemedi. Lütfen tekrar deneyin.'),
+        ),
+      );
+    }
   }
 
   void _profiliDuzenle(BuildContext context) {
@@ -374,6 +449,88 @@ class _BilgiSatiri extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Hesap silme onayı: geri alınamaz olduğu için "SİL" yazılması istenir.
+class _HesapSilDialog extends StatefulWidget {
+  const _HesapSilDialog();
+
+  @override
+  State<_HesapSilDialog> createState() => _HesapSilDialogState();
+}
+
+class _HesapSilDialogState extends State<_HesapSilDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  bool get _onaylandi {
+    final v = _controller.text.trim().replaceAll('i', 'İ').toUpperCase();
+    return v == 'SİL' || v == 'SIL';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    return AlertDialog(
+      icon: Icon(Icons.warning_amber_rounded, color: scheme.error, size: 32),
+      title: const Text('Hesabı sil'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Bu işlem geri alınamaz. Hesabınla birlikte şunlar kalıcı '
+              'olarak silinir:',
+              style: text.bodyMedium,
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            for (final m in const [
+              'Profil bilgilerin',
+              'Favori tariflerin',
+              'Kilo kayıtların',
+              'Gönderdiğin sorular',
+            ])
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text('•  $m', style: text.bodyMedium),
+              ),
+            const SizedBox(height: AppSpacing.md),
+            Text('Onaylamak için SİL yazın:', style: text.labelLarge),
+            const SizedBox(height: AppSpacing.xs),
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              textCapitalization: TextCapitalization.characters,
+              decoration: const InputDecoration(hintText: 'SİL'),
+              onChanged: (_) => setState(() {}),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Vazgeç'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: scheme.error,
+            foregroundColor: scheme.onError,
+            minimumSize: const Size(96, 44),
+          ),
+          onPressed: _onaylandi ? () => Navigator.pop(context, true) : null,
+          child: const Text('Hesabı Sil'),
+        ),
+      ],
     );
   }
 }

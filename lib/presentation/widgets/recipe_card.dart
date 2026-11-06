@@ -93,10 +93,10 @@ class RecipeCard extends StatelessWidget {
                       ],
                     ),
                   ],
-                  if (recipe.ingredients.isNotEmpty) ...[
+                  if (recipe.ingredientCount > 0) ...[
                     const SizedBox(height: AppSpacing.xs),
                     Text(
-                      '${recipe.ingredients.length} malzeme',
+                      '${recipe.ingredientCount} malzeme',
                       style: text.bodySmall?.copyWith(
                         color: scheme.onSurfaceVariant,
                       ),

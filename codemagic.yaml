@@ -1,0 +1,90 @@
+# Dijital Tabağım - Codemagic derleme tanımları
+#
+# .env dosyası Git'e gönderilmez. Derleme sırasında Codemagic'teki
+# SUPABASE_URL / SUPABASE_ANON_KEY değişkenlerinden üretilir; bunlar
+# tanımlı değilse .env.example kopyalanır (uygulama Supabase'e bağlanmaz).
+
+workflows:
+  android-workflow:
+    name: Dijital Tabak Android
+    max_build_duration: 120
+
+    environment:
+      flutter: stable
+
+    scripts:
+      - &create_env
+        name: .env dosyasını oluştur
+        script: |
+          if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_ANON_KEY" ]; then
+            echo "SUPABASE_URL=$SUPABASE_URL" > .env
+            echo "SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" >> .env
+          else
+            echo "Supabase değişkenleri yok, .env.example kullanılıyor"
+            cp .env.example .env
+          fi
+
+      - name: Install dependencies
+        script: flutter pub get
+
+      - name: Build Android APK
+        script: flutter build apk --release
+
+      - name: Build Android App Bundle
+        script: flutter build appbundle --release
+
+    artifacts:
+      - build/app/outputs/flutter-apk/*.apk
+      - build/app/outputs/bundle/release/*.aab
+
+  # ── iOS: IPA derle, imzala ve App Store Connect'e (TestFlight) yükle ──
+  # Codemagic > Team settings > Integrations > Developer Portal'daki
+  # App Store Connect API anahtarının adı aşağıdaki `app_store_connect`
+  # alanıyla AYNI olmalıdır.
+  ios-workflow:
+    name: Dijital Tabağım iOS
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+
+    integrations:
+      app_store_connect: DijitalTabagim ASC
+
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.dijitaltabagim.dijitaltabak
+      vars:
+        APP_STORE_APPLE_ID: 6831739244
+
+    scripts:
+      - *create_env
+
+      - name: Paketleri yükle
+        script: flutter pub get
+
+      - name: CocoaPods
+        # Podfile yoksa adım atlanır; flutter build ipa onu kendisi oluşturur.
+        script: find . -name "Podfile" -execdir pod install \;
+
+      - name: İmzalama profillerini uygula
+        script: xcode-project use-profiles
+
+      - name: IPA oluştur
+        script: |
+          # Her yüklemede build numarası bir öncekinden büyük olmalı
+          LATEST=$(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID" 2>/dev/null || echo 0)
+          flutter build ipa --release \
+            --build-number=$((LATEST + 1)) \
+            --export-options-plist=/Users/builder/export_options.plist
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true

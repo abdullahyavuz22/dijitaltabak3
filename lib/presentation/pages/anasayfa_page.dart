@@ -3,10 +3,8 @@ import '../../core/constants/app_colors.dart';
 import '../../core/theme/app_tokens.dart';
 import '../widgets/app_ui.dart';
 import '../widgets/recipe_card.dart';
-import 'diyetler_page.dart';
-import 'soru_sorma_page.dart';
-import 'videolu_tarifler_page.dart';
-import 'vki_hesaplama_page.dart';
+import 'diyetisyen_onerileri_page.dart';
+import 'tarifler_page.dart';
 import '../../domain/entities/recipe.dart';
 
 typedef AddRecipeCallback =
@@ -86,35 +84,27 @@ class _AnasayfaPageState extends State<AnasayfaPage> {
           sliver: SliverToBoxAdapter(
             child: Row(
               children: [
-                for (final (label, icon, color, page) in [
+                for (final (i, (label, subtitle, icon, color, page)) in [
                   (
-                    'VKİ',
-                    Icons.monitor_weight_outlined,
+                    'Diyetisyen',
+                    'Değerlendirmesi',
+                    Icons.medical_services_outlined,
                     AppColors.info,
-                    const VkiHesaplamaPage() as Widget,
+                    const DiyetisyenOnerileriPage() as Widget,
                   ),
                   (
-                    'Diyetler',
-                    Icons.local_fire_department_outlined,
-                    AppColors.warning,
-                    const DiyetlerPage(),
-                  ),
-                  (
-                    'Videolar',
-                    Icons.play_circle_outline_rounded,
-                    AppColors.danger,
-                    const VideoluTariflerPage(),
-                  ),
-                  (
-                    'Soru Sor',
-                    Icons.forum_outlined,
+                    'Tarifler',
+                    'Tüm tarifler',
+                    Icons.restaurant_menu_rounded,
                     scheme.primary,
-                    const SoruSormaPage(),
+                    const TariflerPage(),
                   ),
-                ])
+                ].indexed) ...[
+                  if (i > 0) const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: _QuickAction(
                       label: label,
+                      subtitle: subtitle,
                       icon: icon,
                       color: color,
                       onTap: () => Navigator.push(
@@ -123,6 +113,7 @@ class _AnasayfaPageState extends State<AnasayfaPage> {
                       ),
                     ),
                   ),
+                ],
               ],
             ),
           ),
@@ -457,37 +448,57 @@ class _HeroCard extends StatelessWidget {
   }
 }
 
+/// Anasayfa kısayol kartı: ikon + başlık + kısa açıklama.
 class _QuickAction extends StatelessWidget {
   const _QuickAction({
     required this.label,
+    required this.subtitle,
     required this.icon,
     required this.color,
     required this.onTap,
   });
 
   final String label;
+  final String subtitle;
   final IconData icon;
   final Color color;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: AppRadius.lgAll,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-        child: Column(
-          children: [
-            IconBadge(icon: icon, color: color, size: 54),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.labelMedium,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
+    final text = Theme.of(context).textTheme;
+    return Card(
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.sm),
+          child: Row(
+            children: [
+              IconBadge(icon: icon, color: color, size: 44),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: text.titleSmall,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      subtitle,
+                      style: text.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

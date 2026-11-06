@@ -21,6 +21,18 @@ class AuthRepository {
 
   Future<void> signOut() => SupabaseConfig.client.auth.signOut();
 
+  /// Oturum sahibinin hesabını ve ona bağlı verileri kalıcı olarak siler,
+  /// ardından oturumu kapatır (bkz. 012_hesap_silme.sql).
+  Future<void> deleteAccount() async {
+    await SupabaseConfig.client.rpc('delete_my_account');
+    try {
+      await SupabaseConfig.client.auth.signOut();
+    } catch (_) {
+      // Kullanıcı artık yok; sunucu tarafı çıkış hata verebilir.
+      await SupabaseConfig.client.auth.signOut(scope: SignOutScope.local);
+    }
+  }
+
   /// Oturum sahibinin `kullanicilar` satırı (rol + ad/soyad).
   /// Giriş yapılmamışsa veya satır bulunamazsa `null` döner.
   Future<Map<String, dynamic>?> _currentProfile() async {

@@ -10,6 +10,16 @@ class RecipeModel extends Recipe {
     super.rating,
     super.ingredients,
     super.instructions,
+    super.description,
+    super.region,
+    super.servings,
+    super.prepTime,
+    super.cookTime,
+    super.tips,
+    super.nutritionAdvice,
+    super.dietitianNote,
+    super.nutrition,
+    super.nutritionTotal,
   });
 
   factory RecipeModel.fromJson(Map<String, dynamic> json) {
@@ -24,7 +34,32 @@ class RecipeModel extends Recipe {
           : null,
       ingredients: _parseArray(json['ingredients']),
       instructions: _parseArray(json['instructions']),
+      description: _text(json['description']),
+      region: _text(json['region']),
+      servings: _text(json['servings']),
+      prepTime: _text(json['prep_time']),
+      cookTime: _text(json['cook_time']),
+      tips: _text(json['tips']),
+      nutritionAdvice: _text(json['nutrition_advice']),
+      dietitianNote: _text(json['dietitian_note']),
+      nutrition: _parseBesin(json['nutrition']),
+      nutritionTotal: _parseBesin(json['nutrition_total']),
     );
+  }
+
+  static String? _text(dynamic v) {
+    final s = v?.toString().trim();
+    return (s == null || s.isEmpty) ? null : s;
+  }
+
+  /// `[{"ad": "Enerji", "miktar": "~200 kcal"}, ...]`
+  static List<BesinOgesi> _parseBesin(dynamic value) {
+    if (value is! List) return const [];
+    return [
+      for (final e in value)
+        if (e is Map && e['ad'] != null && e['miktar'] != null)
+          BesinOgesi(ad: e['ad'].toString(), miktar: e['miktar'].toString()),
+    ];
   }
 
   static List<String> _parseArray(dynamic value) {

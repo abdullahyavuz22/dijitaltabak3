@@ -358,6 +358,15 @@ class NetworkThumb extends StatelessWidget {
   Widget build(BuildContext context) {
     final placeholder = _Placeholder(icon: icon, height: height, width: width);
     if (url == null || url!.isEmpty) return placeholder;
+    if (url!.startsWith('assets/')) {
+      return Image.asset(
+        url!,
+        height: height,
+        width: width,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => placeholder,
+      );
+    }
     return Image.network(
       url!,
       height: height,

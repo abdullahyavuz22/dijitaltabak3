@@ -1,46 +1,20 @@
-# Dijital Tabağım - Codemagic derleme tanımları
+# ─────────────────────────────────────────────────────────────────────
+# Dijital Tabağım – Codemagic
 #
-# .env dosyası Git'e gönderilmez. Derleme sırasında Codemagic'teki
-# SUPABASE_URL / SUPABASE_ANON_KEY değişkenlerinden üretilir; bunlar
-# tanımlı değilse .env.example kopyalanır (uygulama Supabase'e bağlanmaz).
+# iOS derlemesinden önce Codemagic'te (bir kez):
+#   1. Team settings > Integrations > Developer Portal
+#        App Store Connect API anahtarını ekleyin. Anahtar adı aşağıdaki
+#        `integrations.app_store_connect` değeriyle AYNI olmalı.
+#   2. Team settings > Code signing identities
+#        iOS certificates  > "Generate certificate" (Apple Distribution)
+#        iOS provisioning profiles > "Fetch profiles"
+#          (com.dijitaltabagim.dijitaltabak için App Store profili)
+#   3. (İsteğe bağlı) Uygulama > Environment variables
+#        SUPABASE_URL ve SUPABASE_ANON_KEY. Tanımlı değilse .env.example
+#        kullanılır ve uygulama Supabase'e bağlanmaz.
+# ─────────────────────────────────────────────────────────────────────
 
 workflows:
-  android-workflow:
-    name: Dijital Tabak Android
-    max_build_duration: 120
-
-    environment:
-      flutter: stable
-
-    scripts:
-      - &create_env
-        name: .env dosyasını oluştur
-        script: |
-          if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_ANON_KEY" ]; then
-            echo "SUPABASE_URL=$SUPABASE_URL" > .env
-            echo "SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" >> .env
-          else
-            echo "Supabase değişkenleri yok, .env.example kullanılıyor"
-            cp .env.example .env
-          fi
-
-      - name: Install dependencies
-        script: flutter pub get
-
-      - name: Build Android APK
-        script: flutter build apk --release
-
-      - name: Build Android App Bundle
-        script: flutter build appbundle --release
-
-    artifacts:
-      - build/app/outputs/flutter-apk/*.apk
-      - build/app/outputs/bundle/release/*.aab
-
-  # ── iOS: IPA derle, imzala ve App Store Connect'e (TestFlight) yükle ──
-  # Codemagic > Team settings > Integrations > Developer Portal'daki
-  # App Store Connect API anahtarının adı aşağıdaki `app_store_connect`
-  # alanıyla AYNI olmalıdır.
   ios-workflow:
     name: Dijital Tabağım iOS
     max_build_duration: 120
@@ -60,24 +34,31 @@ workflows:
         APP_STORE_APPLE_ID: 6831739244
 
     scripts:
-      - *create_env
+      - name: .env dosyasını oluştur
+        script: |
+          if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_ANON_KEY" ]; then
+            printf "SUPABASE_URL=%s\nSUPABASE_ANON_KEY=%s\n" "$SUPABASE_URL" "$SUPABASE_ANON_KEY" > .env
+          else
+            echo "Supabase değişkenleri tanımlı değil, .env.example kullanılıyor."
+            cp .env.example .env
+          fi
 
-      - name: Paketleri yükle
+      - name: Flutter paketlerini yükle
         script: flutter pub get
 
-      - name: CocoaPods
-        # Podfile yoksa adım atlanır; flutter build ipa onu kendisi oluşturur.
-        script: find . -name "Podfile" -execdir pod install \;
-
-      - name: İmzalama profillerini uygula
+      - name: Xcode imzalama ayarlarını uygula
         script: xcode-project use-profiles
+
+      - name: CocoaPods
+        script: find . -name "Podfile" -execdir pod install \;
 
       - name: IPA oluştur
         script: |
-          # Her yüklemede build numarası bir öncekinden büyük olmalı
-          LATEST=$(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID" 2>/dev/null || echo 0)
+          LATEST_BUILD=$(app-store-connect get-latest-build-number "$APP_STORE_APPLE_ID" 2>/dev/null || echo 0)
+          [ -z "$LATEST_BUILD" ] && LATEST_BUILD=0
+          echo "Son build numarası: $LATEST_BUILD"
           flutter build ipa --release \
-            --build-number=$((LATEST + 1)) \
+            --build-number=$((LATEST_BUILD + 1)) \
             --export-options-plist=/Users/builder/export_options.plist
 
     artifacts:
@@ -88,3 +69,34 @@ workflows:
       app_store_connect:
         auth: integration
         submit_to_testflight: true
+
+  android-workflow:
+    name: Dijital Tabağım Android
+    max_build_duration: 60
+    instance_type: linux_x2
+
+    environment:
+      flutter: stable
+
+    scripts:
+      - name: .env dosyasını oluştur
+        script: |
+          if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_ANON_KEY" ]; then
+            printf "SUPABASE_URL=%s\nSUPABASE_ANON_KEY=%s\n" "$SUPABASE_URL" "$SUPABASE_ANON_KEY" > .env
+          else
+            echo "Supabase değişkenleri tanımlı değil, .env.example kullanılıyor."
+            cp .env.example .env
+          fi
+
+      - name: Flutter paketlerini yükle
+        script: flutter pub get
+
+      - name: APK oluştur
+        script: flutter build apk --release
+
+      - name: App Bundle oluştur
+        script: flutter build appbundle --release
+
+    artifacts:
+      - build/app/outputs/flutter-apk/*.apk
+      - build/app/outputs/bundle/release/*.aab
